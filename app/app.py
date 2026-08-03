@@ -289,6 +289,12 @@ def render_tab(tab, name: str, curve_fn, model_metrics: dict | None) -> None:
             c1.metric("R²", f"{model_metrics['r2']:.3f}")
             c2.metric("RMSE", f"{model_metrics['rmse']:.2f}")
             c3.metric("MAE", f"{model_metrics['mae']:.2f}")
+            if name == "B4":
+                st.caption(
+                    "R²/RMSE/MAE calculados após calibração linear (escala + viés) da "
+                    "fórmula contra a base — mesmo procedimento usado no notebook original "
+                    "para o B4, já que sua escala bruta não bate com a convenção desta base."
+                )
 
         df_out = pd.DataFrame({"tempo_dias": tempos, "valor": y})
         st.download_button(

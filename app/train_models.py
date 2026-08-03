@@ -20,6 +20,7 @@ from pathlib import Path
 
 import joblib
 import numpy as np
+from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -39,11 +40,31 @@ def _reg_metrics(y_true, y_pred) -> dict:
     }
 
 
+def _calibrated_metrics(y_true, y_pred_raw) -> dict:
+    """R²/RMSE/MAE after a linear (scale + bias) calibration of the raw
+    formula output against the target -- this is exactly the "R² após
+    ajuste linear" step the B4 sections of the original notebooks compute
+    (`LinearRegression().fit(J_train, y)`), used there because B4's absolute
+    scale doesn't line up with this specific database's convention even when
+    its overall shape/correlation is reasonable. This only affects the
+    reported metric, not the curve the app predicts for user-entered inputs.
+    """
+    y_true_arr = np.asarray(y_true, dtype=float)
+    y_pred_arr = np.asarray(y_pred_raw, dtype=float)
+    mask = np.isfinite(y_true_arr) & np.isfinite(y_pred_arr)
+    reg = LinearRegression().fit(y_pred_arr[mask].reshape(-1, 1), y_true_arr[mask])
+    y_calibrated = reg.predict(y_pred_arr[mask].reshape(-1, 1))
+    return _reg_metrics(y_true_arr[mask], y_calibrated)
+
+
 def evaluate_formulas() -> dict:
     """R²/RMSE/MAE of each closed-form model against the full cleaned
     database (these are physics formulas, not fitted to this dataset, so
     this is a "how well does the norm/standard match reality" check, not a
-    held-out ML test score).
+    held-out ML test score). ABNT is reported raw (its absolute scale
+    already lines up reasonably with the database); B4 is reported after
+    the same linear calibration its own notebook applied, since its raw
+    output otherwise carries a scale/bias mismatch that swamps the R².
     """
     results = {}
 
@@ -51,13 +72,13 @@ def evaluate_formulas() -> dict:
     y_c = df_c["x4"]
     results["creep_abnt"] = _reg_metrics(y_c, f.fluencia_abnt(df_c)["J_total"])
     results["creep_b3"] = _reg_metrics(y_c, f.calcular_fluencia_B3_corrigido(df_c))
-    results["creep_b4"] = _reg_metrics(y_c, f.calcular_fluencia_B4(df_c))
+    results["creep_b4"] = _calibrated_metrics(y_c, f.calcular_fluencia_B4(df_c))
 
     df_s = dp.build_shrinkage_dataset(merge_cement_nr=False)
     y_s = df_s["x4"].abs()
     results["shrinkage_abnt"] = _reg_metrics(y_s, f.modelo_abnt(df_s)["ecs_ue"])
     results["shrinkage_b3"] = _reg_metrics(y_s, f.calcular_retracao_b3_corrigido(df_s))
-    results["shrinkage_b4"] = _reg_metrics(y_s, f.calcular_retracao_b4_baseline_tc(df_s))
+    results["shrinkage_b4"] = _calibrated_metrics(y_s, f.calcular_retracao_b4_baseline_tc(df_s))
 
     return results
 
