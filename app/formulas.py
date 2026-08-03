@@ -170,8 +170,15 @@ def calcular_fluencia_B3_corrigido(data: pd.DataFrame) -> pd.Series:
 
 
 # =====================================================================
-# CREEP -- ACI 209 B4 (final, per-cement-type version)
+# CREEP -- ACI 209 B4 (generic-cement placeholder version)
 # =====================================================================
+# NOTE: an alternative "final" version of this notebook exists with a full
+# per-cement-type (N/R/RS/SL) parameter table for the Cd (drying-creep) term,
+# but it fits this database noticeably worse (raw R^2 -0.22 vs 0.45 here) --
+# confirmed against the author's own printed metrics. This generic version
+# (fixed alpha_1/alpha_2, ACI 209.2R-08 defaults) is used instead because it
+# matches the database better, at the cost of not distinguishing cement type
+# (same limitation as B3).
 
 def calcular_fluencia_B4(data: pd.DataFrame) -> pd.Series:
     epsilon = 1e-9
@@ -186,72 +193,55 @@ def calcular_fluencia_B4(data: pd.DataFrame) -> pd.Series:
     a_c = data["x18"] + epsilon
 
     h = h_pct / 100.0
+    w = w_c * c
     t = t_o + duration
     t_c = t_o
 
-    kh = np.where(h <= 0.98, 1 - h ** 3, 12.94 * (1 - h) - 0.2)
+    alpha_1 = 1.0
+    alpha_2 = 1.2
 
-    n_rows = len(data)
-    tau_cem = np.zeros(n_rows)
-    ptaua, ptauw, ptauc = np.zeros(n_rows), np.zeros(n_rows), np.zeros(n_rows)
-    ecem, pea, pew, pec = np.zeros(n_rows), np.zeros(n_rows), np.zeros(n_rows), np.zeros(n_rows)
-    p1, p2, p3, p4, p5, p5h, p2w, p3a, p3w, p4a, p4w, p5e, p5a, p5w = [np.zeros(n_rows) for _ in range(14)]
+    q1 = 0.6 / E_cm28
 
-    mN = (data["x20_N"] == 1) if "x20_N" in data.columns else np.zeros(n_rows, dtype=bool)
-    mR = (data["x20_R"] == 1) if "x20_R" in data.columns else np.zeros(n_rows, dtype=bool)
-    mRS = (data["x20_RS"] == 1) if "x20_RS" in data.columns else np.zeros(n_rows, dtype=bool)
-    mSL = (data["x20_SL"] == 1) if "x20_SL" in data.columns else np.zeros(n_rows, dtype=bool)
+    q2 = 185.4e-6 * (c ** 0.5) * (f_cm28 ** -0.9)
+    q3 = 0.29 * (w_c ** 4) * q2
+    q4 = 20.3e-6 * (a_c ** -0.7)
 
-    for m in [mN, mRS]:
-        tau_cem[m], ptaua[m], ptauw[m], ptauc[m] = 0.08, -0.33, -2.40, -2.70
-        ecem[m], pea[m], pew[m], pec[m] = 860e-6, -0.80, -0.27, 0.11
-        p1[m], p2[m], p3[m], p4[m], p5[m], p5h[m] = 0.6, 17.4e-3, 39.3e-3, 3.4e-3, 94.6e-6, 1.0
-        p2w[m], p3a[m], p3w[m], p4a[m], p4w[m], p5e[m], p5a[m], p5w[m] = 3.0, -1.1, 0.4, -0.9, 2.45, -0.85, -1.0, 0.78
-
-    tau_cem[mR], ptaua[mR], ptauw[mR], ptauc[mR] = 0.016, -0.33, -0.06, -0.10
-    ecem[mR], pea[mR], pew[mR], pec[mR] = 360e-6, -0.80, 1.1, 0.11
-    p1[mR], p2[mR], p3[mR], p4[mR], p5[mR], p5h[mR] = 0.7, 58.6e-3, 39.3e-3, 3.4e-3, 777e-6, 8.0
-    p2w[mR], p3a[mR], p3w[mR], p4a[mR], p4w[mR], p5e[mR], p5a[mR], p5w[mR] = 3.0, -1.1, 0.4, -0.9, 2.45, -0.85, -1.0, 0.78
-
-    tau_cem[mSL], ptaua[mSL], ptauw[mSL], ptauc[mSL] = 0.01, -0.33, 3.55, 3.8
-    ecem[mSL], pea[mSL], pew[mSL], pec[mSL] = 410e-6, -0.80, 1.0, 0.11
-    p1[mSL], p2[mSL], p3[mSL], p4[mSL], p5[mSL], p5h[mSL] = 0.8, 40.5e-3, 39.3e-3, 3.4e-3, 496e-6, 8.0
-    p2w[mSL], p3a[mSL], p3w[mSL], p4a[mSL], p4w[mSL], p5e[mSL], p5a[mSL], p5w[mSL] = 3.0, -1.1, 0.4, -0.9, 2.45, -0.85, -1.0, 0.78
-
-    q1 = p1 / E_cm28
-    q2 = (p2 / 1000) * (w_c / 0.38) ** p2w
-    q3 = p3 * q2 * (a_c / 6) ** p3a * (w_c / 0.38) ** p3w
-    q4 = (p4 / 1000) * (a_c / 6) ** p4a * (w_c / 0.38) ** p4w
-
-    duracao_efetiva = np.maximum(data["x3"], 0.0)
     m, n = 0.5, 0.1
-    Q_f_to = (0.086 * (t_o ** (2 / 9)) + 1.21 * (t_o ** (4 / 9))) ** (-1)
-    Z_t_to = (t_o ** -m) * np.log(1 + duracao_efetiva ** n)
+    Q_f_to = (0.086 * (t_o ** (2 / 9)) + 1.21 * (t_o ** (4 / 9))) ** -1
+    log_term_Z = np.log(1 + np.maximum(epsilon, duration) ** n)
+    Z_t_to = (t_o ** -m) * log_term_Z
     r_to = 1.7 * (t_o ** 0.12) + 8
+
     Q_t_to = Q_f_to * (1 + (Q_f_to / (Z_t_to + epsilon)) ** r_to) ** (-1 / r_to)
 
-    C_0 = q2 * Q_t_to + q3 * np.log(1 + duracao_efetiva ** n) + q4 * np.log(np.maximum(1.0, t / t_o))
+    log_term_C0_1 = np.log(1 + np.maximum(epsilon, duration) ** n)
+    log_term_C0_2 = np.log(np.maximum(1.0, t / t_o))
+    C_0 = q2 * Q_t_to + q3 * log_term_C0_1 + q4 * log_term_C0_2
 
-    e0 = ecem * (a_c / 6) ** pea * (w_c / 0.38) ** pew * (6.5 * c / 2350) ** pec
-    tau0 = tau_cem * (a_c / 6) ** ptaua * (w_c / 0.38) ** ptauw * (6.5 * c / 2350) ** ptauc
-    tau_sh = tau0 * (2 * V_S) ** 2
+    epsilon_s_inf = -alpha_1 * alpha_2 * (0.019 * w ** 2.1 * f_cm28 ** -0.28 + 270) * 1e-6
+    k_s = 1.0
+    t_c_safe = np.maximum(1.0, t_c)
+    tau_sh = 0.085 * (t_c_safe ** -0.08) * (f_cm28 ** -0.25) * (2 * k_s * V_S) ** 2
+    tau_sh_safe = np.maximum(epsilon, tau_sh)
 
-    E_num = E_cm28 * (607 / (4 + 6 / 7 * 607)) ** 0.5
-    E_den = E_cm28 * ((t_o + tau_sh) / (4 + 6 / 7 * (t_o + tau_sh))) ** 0.5
-    epsilon_sh_inf = -e0 * E_num / E_den
+    E_cm_tc_tau = E_cm28 * ((t_c_safe + tau_sh) / (4 + 0.85 * (t_c_safe + tau_sh))) ** 0.5
+    E_cm_607 = E_cm28 * (607 / (4 + 0.85 * 607)) ** 0.5
+    epsilon_sh_inf = epsilon_s_inf * (E_cm_607 / (E_cm_tc_tau + epsilon))
 
-    S_t_tc = np.tanh(np.sqrt(np.maximum(0, (t - t_c)) / (tau_sh + epsilon)))
-    S_to_tc = np.tanh(np.sqrt(np.maximum(0, (t_o - t_c)) / (tau_sh + epsilon)))
+    q5 = 0.757 * (f_cm28 ** -1) * (abs(epsilon_sh_inf * 1_000_000) + epsilon) ** -0.6
+
+    S_t_tc = np.tanh(np.sqrt(np.maximum(0, (t - t_c_safe)) / tau_sh_safe))
+    S_to_tc = np.tanh(np.sqrt(np.maximum(0, (t_o - t_c_safe)) / tau_sh_safe))
     Ht = 1 - (1 - h) * S_t_tc
     Ht_o = 1 - (1 - h) * S_to_tc
 
-    q5 = (p5 / 1000) * (a_c / 6) ** p5a * (w_c / 0.38) ** p5w * np.abs(kh * epsilon_sh_inf) ** p5e
-    termo_Cd_B4 = np.exp(-p5h * Ht) - np.exp(-p5h * Ht_o)
-    Cd = q5 * np.sqrt(np.maximum(0.0, termo_Cd_B4))
+    p_5H = 8.0
+    termo_Cd_B4 = np.exp(-p_5H * Ht) - np.exp(-p_5H * Ht_o)
+    Cd = q5 * np.sqrt(np.maximum(0, termo_Cd_B4))
 
-    J = (q1 + C_0 + Cd) * 10 ** 6
-    J = J.replace([np.inf, -np.inf], np.nan)
-    return J.fillna(J.median())
+    J = q1 + C_0 + Cd
+    J_filled = J.fillna(0).replace([np.inf, -np.inf], 0)
+    return J_filled * 1_000_000
 
 
 # =====================================================================

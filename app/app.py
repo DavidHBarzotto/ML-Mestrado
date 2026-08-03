@@ -34,6 +34,11 @@ CEMENT_EFFECT_NOTE = {
         "**fluência** depende, pelo coeficiente de endurecimento) — por isso "
         "trocar o cimento aqui não altera a curva."
     ),
+    ("creep", "B4"): (
+        "⚠️ Esta versão do B4 (parâmetros genéricos do ACI 209.2R-08) não "
+        "diferencia o tipo de cimento — é a que melhor se ajusta a esta base, "
+        "mas por isso não muda com a seleção de cimento (mesma limitação do B3)."
+    ),
     ("shrinkage", "B4"): (
         "⚠️ O tipo de cimento afeta apenas a parcela de secagem deste modelo — "
         "a parcela autógena usa um único conjunto de parâmetros para todos os tipos "
@@ -166,20 +171,25 @@ with st.sidebar.expander("Limitações conhecidas"):
     st.markdown(
         "- **ABNT (retração)** não depende do tipo de cimento — a norma NBR "
         "6118 só faz essa distinção na fórmula da fluência.\n"
+        "- **B4 (fluência)** usa a versão com parâmetros genéricos do ACI "
+        "209.2R-08 (não diferencia tipo de cimento) — é a que melhor se ajusta "
+        "a esta base; uma versão alternativa com tabela por tipo de cimento "
+        "existe mas se ajusta pior.\n"
         "- **B4 (retração)** — o tipo de cimento altera a parcela de secagem "
-        "(usando as mesmas tabelas por tipo do modelo B4 de fluência), mas a "
-        "parcela autógena continua fixa nos parâmetros 'Tipo R', pois não há "
-        "calibração por tipo de cimento para essa parcela na literatura de "
-        "origem.\n"
-        "- **ABNT/B4 (fluência e retração)** tratam os cimentos N e RS como "
-        "idênticos — é assim que a norma/literatura de origem agrupa esses "
-        "tipos, não é uma limitação da modelagem.\n"
+        "(usando as mesmas tabelas por tipo do modelo B4 de fluência que tem "
+        "tabela), mas a parcela autógena continua fixa nos parâmetros 'Tipo R', "
+        "pois não há calibração por tipo de cimento para essa parcela na "
+        "literatura de origem.\n"
+        "- **ABNT** trata os cimentos N e RS como idênticos — é assim que a "
+        "norma agrupa esses tipos, não é uma limitação da modelagem.\n"
         "- O seletor de cimento junta **N e R em uma única opção** ('N/R') em "
         "todos os modelos — internamente, o Random Forest/XGBoost já foram "
         "treinados tratando N e R como a mesma categoria, e nas fórmulas "
         "ABNT/B4 essa opção usa os parâmetros do cimento N.\n"
-        "- As métricas das fórmulas ABNT/B4 comparam a fórmula fechada contra "
-        "toda a base de dados (não é um teste de ML com dados nunca vistos)."
+        "- As métricas de **ABNT e B4** são calculadas após uma calibração "
+        "linear (escala + viés) contra a base — mesmo procedimento usado nos "
+        "notebooks originais — para permitir comparação justa entre os dois; "
+        "não é um teste de ML com dados nunca vistos."
     )
 
 e28_user = e28_input if e28_input > 0 else None
@@ -289,11 +299,12 @@ def render_tab(tab, name: str, curve_fn, model_metrics: dict | None) -> None:
             c1.metric("R²", f"{model_metrics['r2']:.3f}")
             c2.metric("RMSE", f"{model_metrics['rmse']:.2f}")
             c3.metric("MAE", f"{model_metrics['mae']:.2f}")
-            if name == "B4":
+            if name in ("ABNT", "B4"):
                 st.caption(
                     "R²/RMSE/MAE calculados após calibração linear (escala + viés) da "
-                    "fórmula contra a base — mesmo procedimento usado no notebook original "
-                    "para o B4, já que sua escala bruta não bate com a convenção desta base."
+                    "fórmula contra a base — mesmo procedimento usado nos notebooks originais, "
+                    "já que a escala bruta de cada fórmula não bate exatamente com a convenção "
+                    "desta base."
                 )
 
         df_out = pd.DataFrame({"tempo_dias": tempos, "valor": y})

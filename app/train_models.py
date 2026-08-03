@@ -61,23 +61,24 @@ def evaluate_formulas() -> dict:
     """R²/RMSE/MAE of each closed-form model against the full cleaned
     database (these are physics formulas, not fitted to this dataset, so
     this is a "how well does the norm/standard match reality" check, not a
-    held-out ML test score). ABNT is reported raw (its absolute scale
-    already lines up reasonably with the database); B4 is reported after
-    the same linear calibration its own notebook applied, since its raw
-    output otherwise carries a scale/bias mismatch that swamps the R².
+    held-out ML test score). ABNT and B4 are BOTH reported after the same
+    linear calibration (scale + bias) their own notebooks used -- comparing
+    a raw formula's R² against a calibrated one isn't apples-to-apples,
+    since a raw output can carry a scale/bias mismatch that swamps the R²
+    even when the underlying shape/correlation is fine.
     """
     results = {}
 
     df_c = dp.build_creep_dataset(merge_cement_nr=False)
-    y_c = df_c["x4"]
-    results["creep_abnt"] = _reg_metrics(y_c, f.fluencia_abnt(df_c)["J_total"])
-    results["creep_b3"] = _reg_metrics(y_c, f.calcular_fluencia_B3_corrigido(df_c))
+    y_c = df_c["x4"].abs()
+    results["creep_abnt"] = _calibrated_metrics(y_c, f.fluencia_abnt(df_c)["J_total"])
+    results["creep_b3"] = _calibrated_metrics(y_c, f.calcular_fluencia_B3_corrigido(df_c))
     results["creep_b4"] = _calibrated_metrics(y_c, f.calcular_fluencia_B4(df_c))
 
     df_s = dp.build_shrinkage_dataset(merge_cement_nr=False)
     y_s = df_s["x4"].abs()
-    results["shrinkage_abnt"] = _reg_metrics(y_s, f.modelo_abnt(df_s)["ecs_ue"])
-    results["shrinkage_b3"] = _reg_metrics(y_s, f.calcular_retracao_b3_corrigido(df_s))
+    results["shrinkage_abnt"] = _calibrated_metrics(y_s, f.modelo_abnt(df_s)["ecs_ue"])
+    results["shrinkage_b3"] = _calibrated_metrics(y_s, f.calcular_retracao_b3_corrigido(df_s))
     results["shrinkage_b4"] = _calibrated_metrics(y_s, f.calcular_retracao_b4_baseline_tc(df_s))
 
     return results
