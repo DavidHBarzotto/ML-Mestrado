@@ -28,7 +28,18 @@ MODELS_DIR = ROOT / "models"
 
 # Models that only partially use the selected cement type -- see the
 # "Limitações conhecidas" note in the sidebar for details.
-PARTIAL_CEMENT_EFFECT = {("shrinkage", "B4")}
+CEMENT_EFFECT_NOTE = {
+    ("shrinkage", "ABNT"): (
+        "⚠️ Pela NBR 6118, a **retração** não depende do tipo de cimento (só a "
+        "**fluência** depende, pelo coeficiente de endurecimento) — por isso "
+        "trocar o cimento aqui não altera a curva."
+    ),
+    ("shrinkage", "B4"): (
+        "⚠️ O tipo de cimento afeta apenas a parcela de secagem deste modelo — "
+        "a parcela autógena usa um único conjunto de parâmetros para todos os tipos "
+        "(sem calibração por tipo disponível na literatura de origem)."
+    ),
+}
 
 # --- Estilo dos gráficos (aparência LaTeX/artigo científico) -----------
 # Deliberately NOT using text.usetex=True: it depends on a full system LaTeX
@@ -146,11 +157,19 @@ log_x = st.sidebar.checkbox("Eixo do tempo em escala logarítmica", value=(quant
 
 with st.sidebar.expander("Limitações conhecidas"):
     st.markdown(
-        "- **B4 (retração)** — o tipo de cimento agora altera a parcela de "
-        "secagem (usando as mesmas tabelas por tipo do modelo B4 de fluência), "
-        "mas a parcela autógena continua fixa nos parâmetros 'Tipo R', pois não "
-        "há calibração por tipo de cimento para essa parcela na literatura de "
+        "- **ABNT (retração)** não depende do tipo de cimento — a norma NBR "
+        "6118 só faz essa distinção na fórmula da fluência.\n"
+        "- **B4 (retração)** — o tipo de cimento altera a parcela de secagem "
+        "(usando as mesmas tabelas por tipo do modelo B4 de fluência), mas a "
+        "parcela autógena continua fixa nos parâmetros 'Tipo R', pois não há "
+        "calibração por tipo de cimento para essa parcela na literatura de "
         "origem.\n"
+        "- **ABNT/B4 (fluência e retração)** tratam os cimentos N e RS como "
+        "idênticos — é assim que a norma/literatura de origem agrupa esses "
+        "tipos, não é uma limitação da modelagem.\n"
+        "- **Random Forest/XGBoost** tratam os cimentos N e R como uma única "
+        "categoria, pois foi assim que os dados de treino existentes foram "
+        "construídos.\n"
         "- As métricas das fórmulas ABNT/B4 comparam a fórmula fechada contra "
         "toda a base de dados (não é um teste de ML com dados nunca vistos)."
     )
@@ -232,12 +251,9 @@ def ml_metrics(model_key: str) -> dict | None:
 
 def render_tab(tab, name: str, curve_fn, model_metrics: dict | None) -> None:
     with tab:
-        if (quantity, name) in PARTIAL_CEMENT_EFFECT:
-            st.caption(
-                "⚠️ O tipo de cimento afeta apenas a parcela de secagem deste modelo — "
-                "a parcela autógena usa um único conjunto de parâmetros para todos os tipos "
-                "(sem calibração por tipo disponível na literatura de origem)."
-            )
+        note = CEMENT_EFFECT_NOTE.get((quantity, name))
+        if note:
+            st.caption(note)
         try:
             y = curve_fn()
         except Exception as exc:  # noqa: BLE001 - surface any formula error to the user
