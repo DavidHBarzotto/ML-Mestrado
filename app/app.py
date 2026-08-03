@@ -35,6 +35,10 @@ PARTIAL_CEMENT_EFFECT = {("shrinkage", "B4")}
 _HAS_LATEX = shutil.which("latex") is not None and shutil.which("dvipng") is not None
 plt.rcParams.update({
     "text.usetex": _HAS_LATEX,
+    # Plain LaTeX doesn't handle UTF-8 (accented Portuguese text) without
+    # these packages -- without them "ç"/"ã"/etc render as broken glyphs.
+    "text.latex.preamble": r"\usepackage[utf8]{inputenc}\usepackage[T1]{fontenc}"
+                           r"\usepackage{textcomp}\usepackage{lmodern}",
     "font.family": "serif",
     "font.serif": ["Computer Modern Roman", "cmr10", "DejaVu Serif"],
     "mathtext.fontset": "cm",
