@@ -33,17 +33,6 @@ CEMENT_EFFECT_NOTE = {
         "**fluência** depende, pelo coeficiente de endurecimento) — por isso "
         "trocar o cimento aqui não altera a curva."
     ),
-    ("creep", "B4"): (
-        "⚠️ Esta versão do B4 (parâmetros genéricos do ACI 209.2R-08) não "
-        "diferencia o tipo de cimento — é a que melhor se ajusta a esta base, "
-        "mas por isso não muda com a seleção de cimento (mesma limitação do B3)."
-    ),
-    ("shrinkage", "B4"): (
-        "⚠️ Este modelo usa os parâmetros do cimento Tipo R para todos os tipos "
-        "(a tabela por tipo de cimento existente na literatura se ajusta pior a "
-        "esta base) — por isso não muda com a seleção de cimento (mesma "
-        "limitação do B3/B4-fluência)."
-    ),
 }
 
 # --- Estilo dos gráficos (aparência LaTeX/artigo científico) -----------
@@ -162,13 +151,6 @@ with st.sidebar.expander("Limitações conhecidas"):
     st.markdown(
         "- **ABNT (retração)** não depende do tipo de cimento — a norma NBR "
         "6118 só faz essa distinção na fórmula da fluência.\n"
-        "- **B4 (fluência)** usa a versão com parâmetros genéricos do ACI "
-        "209.2R-08 (não diferencia tipo de cimento) — é a que melhor se ajusta "
-        "a esta base; uma versão alternativa com tabela por tipo de cimento "
-        "existe mas se ajusta pior.\n"
-        "- **B4 (retração)** usa os parâmetros do cimento Tipo R para todos os "
-        "tipos (mesma razão do B4-fluência: a tabela por tipo se ajusta pior a "
-        "esta base) — não diferencia tipo de cimento.\n"
         "- **ABNT** trata os cimentos N e RS como idênticos — é assim que a "
         "norma agrupa esses tipos, não é uma limitação da modelagem.\n"
         "- O seletor de cimento junta **N e R em uma única opção** ('N/R') em "
