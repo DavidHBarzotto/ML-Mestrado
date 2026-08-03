@@ -128,7 +128,7 @@ if artifacts is None:
 quantity_label = st.sidebar.radio("Grandeza", ["Fluência (J)", "Retração (ε)"])
 quantity = "creep" if quantity_label.startswith("Fluência") else "shrinkage"
 
-CEMENT_OPTIONS = ["N", "R", "RS", "SL"]
+CEMENT_OPTIONS = ["N/R", "RS", "SL"]
 
 st.sidebar.header("Propriedades do concreto")
 fc28 = st.sidebar.number_input("fc28 — resistência aos 28 dias (MPa)", 5.0, 120.0, 33.3, step=1.0)
@@ -148,7 +148,14 @@ else:
     t0 = st.sidebar.number_input("Idade de início da secagem, tc (dias)", 0.5, 365.0, 7.0, step=1.0)
 humidity = st.sidebar.number_input("Umidade relativa do ambiente (%)", 40.0, 100.0, 60.0, step=1.0)
 temp = st.sidebar.number_input("Temperatura (°C)", 0.0, 60.0, 23.0, step=1.0)
-cement_type = st.sidebar.selectbox("Tipo de cimento", CEMENT_OPTIONS, index=1)
+cement_display = st.sidebar.selectbox("Tipo de cimento", CEMENT_OPTIONS, index=0)
+# N and R are kept as a single option everywhere in the UI: RF/XGBoost were
+# already trained with N and R merged into one category, and ABNT/B4 group
+# N with RS in their own tables -- so "N" and "R" almost never behave
+# differently enough to justify separate menu entries, and having both
+# confused more than it helped. "N" is used internally as the representative
+# value wherever a formula needs one specific flag.
+cement_type = "N" if cement_display == "N/R" else cement_display
 
 st.sidebar.header("Faixa de tempo da curva")
 t_max = st.sidebar.slider("Duração máxima (dias)", 28, 3650, 84)
@@ -167,9 +174,10 @@ with st.sidebar.expander("Limitações conhecidas"):
         "- **ABNT/B4 (fluência e retração)** tratam os cimentos N e RS como "
         "idênticos — é assim que a norma/literatura de origem agrupa esses "
         "tipos, não é uma limitação da modelagem.\n"
-        "- **Random Forest/XGBoost** tratam os cimentos N e R como uma única "
-        "categoria, pois foi assim que os dados de treino existentes foram "
-        "construídos.\n"
+        "- O seletor de cimento junta **N e R em uma única opção** ('N/R') em "
+        "todos os modelos — internamente, o Random Forest/XGBoost já foram "
+        "treinados tratando N e R como a mesma categoria, e nas fórmulas "
+        "ABNT/B4 essa opção usa os parâmetros do cimento N.\n"
         "- As métricas das fórmulas ABNT/B4 comparam a fórmula fechada contra "
         "toda a base de dados (não é um teste de ML com dados nunca vistos)."
     )
@@ -270,7 +278,7 @@ def render_tab(tab, name: str, curve_fn, model_metrics: dict | None) -> None:
             ax.plot(tempos, y, color="black", linewidth=2, solid_capstyle="round")
         ax.set_xlabel(X_LABEL)
         ax.set_ylabel(Y_LABEL)
-        ax.set_title(f"Modelo {name} — cimento {cement_type}")
+        ax.set_title(f"Modelo {name} — cimento {cement_display}")
         style_axes(ax)
         fig.tight_layout()
         st.pyplot(fig)
@@ -324,7 +332,7 @@ with tab_all:
             ax.plot(tempos, y, label=label, color=color, linestyle=linestyle, linewidth=2)
     ax.set_xlabel(X_LABEL)
     ax.set_ylabel(Y_LABEL)
-    ax.set_title(f"Comparação de modelos — cimento {cement_type}")
+    ax.set_title(f"Comparação de modelos — cimento {cement_display}")
     style_axes(ax)
     ax.legend(loc="best")
     fig.tight_layout()
