@@ -7,7 +7,6 @@ Run with:
 """
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -105,16 +104,7 @@ def load_artifacts():
         return ml.train_all()
 
 
-@st.cache_data
-def load_metrics():
-    path = MODELS_DIR / "metrics.json"
-    if not path.exists():
-        return {}
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
 artifacts = load_artifacts()
-metrics = load_metrics()
 
 st.title("Previsão de Fluência (J) e Retração (ε) do Concreto")
 st.caption(
@@ -184,12 +174,7 @@ with st.sidebar.expander("Limitações conhecidas"):
         "- O seletor de cimento junta **N e R em uma única opção** ('N/R') em "
         "todos os modelos — internamente, o Random Forest/XGBoost já foram "
         "treinados tratando N e R como a mesma categoria, e nas fórmulas "
-        "ABNT/B4 essa opção usa os parâmetros do cimento N.\n"
-        "- As métricas de **ABNT e B4** são calculadas com o mesmo split "
-        "treino/teste (70/30) usado no Random Forest/XGBoost: calibração "
-        "linear (escala + viés) ajustada só no treino, R²/RMSE/MAE reportados "
-        "no teste — mesmo procedimento usado nos notebooks originais, e "
-        "diretamente comparável entre todos os modelos."
+        "ABNT/B4 essa opção usa os parâmetros do cimento N."
     )
 
 e28_user = e28_input if e28_input > 0 else None
@@ -253,21 +238,7 @@ X_LABEL = r"Tempo de carregamento, $t - t_0$ (dias)" if quantity == "creep" \
     else r"Tempo de secagem, $t - t_c$ (dias)"
 
 
-def formula_metrics(name: str) -> dict | None:
-    key = {"ABNT": "abnt", "B4": "b4"}[name]
-    return metrics.get("formulas", {}).get(f"{quantity}_{key}")
-
-
-def ml_metrics(model_key: str) -> dict | None:
-    cached = metrics.get(quantity, {}).get(model_key)
-    if cached:
-        return cached
-    if artifacts is not None:
-        return artifacts[quantity][model_key].get("metrics")
-    return None
-
-
-def render_tab(tab, name: str, curve_fn, model_metrics: dict | None) -> None:
+def render_tab(tab, name: str, curve_fn) -> None:
     with tab:
         note = CEMENT_EFFECT_NOTE.get((quantity, name))
         if note:
@@ -294,19 +265,6 @@ def render_tab(tab, name: str, curve_fn, model_metrics: dict | None) -> None:
         st.pyplot(fig)
         plt.close(fig)
 
-        if model_metrics:
-            c1, c2, c3 = st.columns(3)
-            c1.metric("R²", f"{model_metrics['r2']:.3f}")
-            c2.metric("RMSE", f"{model_metrics['rmse']:.2f}")
-            c3.metric("MAE", f"{model_metrics['mae']:.2f}")
-            if name in ("ABNT", "B4"):
-                st.caption(
-                    "R²/RMSE/MAE no split de teste (30%, calibração linear ajustada só "
-                    "no treino) — mesmo procedimento usado nos notebooks originais, já "
-                    "que a escala bruta de cada fórmula não bate exatamente com a "
-                    "convenção desta base."
-                )
-
         df_out = pd.DataFrame({"tempo_dias": tempos, "valor": y})
         st.download_button(
             "Baixar curva (CSV)", df_out.to_csv(index=False).encode("utf-8"),
@@ -320,10 +278,10 @@ tab_abnt, tab_b4, tab_rf, tab_xgb, tab_all = st.tabs(
     ["ABNT", "B4", "Random Forest", "XGBoost", "Comparar todos"]
 )
 
-render_tab(tab_abnt, "ABNT", curve_abnt, formula_metrics("ABNT"))
-render_tab(tab_b4, "B4", curve_b4, formula_metrics("B4"))
-render_tab(tab_rf, "Random Forest", lambda: curve_ml("rf"), ml_metrics("rf"))
-render_tab(tab_xgb, "XGBoost", lambda: curve_ml("xgb"), ml_metrics("xgb"))
+render_tab(tab_abnt, "ABNT", curve_abnt)
+render_tab(tab_b4, "B4", curve_b4)
+render_tab(tab_rf, "Random Forest", lambda: curve_ml("rf"))
+render_tab(tab_xgb, "XGBoost", lambda: curve_ml("xgb"))
 
 with tab_all:
     st.caption("Sobreposição das curvas de todos os modelos disponíveis para as mesmas propriedades.")
