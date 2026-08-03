@@ -8,7 +8,6 @@ Run with:
 from __future__ import annotations
 
 import json
-import shutil
 import sys
 from pathlib import Path
 
@@ -32,15 +31,16 @@ MODELS_DIR = ROOT / "models"
 PARTIAL_CEMENT_EFFECT = {("shrinkage", "B4")}
 
 # --- Estilo dos gráficos (aparência LaTeX/artigo científico) -----------
-_HAS_LATEX = shutil.which("latex") is not None and shutil.which("dvipng") is not None
+# Deliberately NOT using text.usetex=True: it depends on a full system LaTeX
+# install (latex/dvipng/ghostscript + the right packages for UTF-8 Portuguese
+# accents), which we can't guarantee on Streamlit Community Cloud's shared
+# containers. "DejaVu Serif" ships with matplotlib itself, renders accented
+# text correctly everywhere, and mathtext's "cm" fontset still gives the
+# LaTeX/Computer-Modern look for the actual math notation ($t-t_c$, etc.).
 plt.rcParams.update({
-    "text.usetex": _HAS_LATEX,
-    # Plain LaTeX doesn't handle UTF-8 (accented Portuguese text) without
-    # these packages -- without them "ç"/"ã"/etc render as broken glyphs.
-    "text.latex.preamble": r"\usepackage[utf8]{inputenc}\usepackage[T1]{fontenc}"
-                           r"\usepackage{textcomp}\usepackage{lmodern}",
+    "text.usetex": False,
     "font.family": "serif",
-    "font.serif": ["Computer Modern Roman", "cmr10", "DejaVu Serif"],
+    "font.serif": ["DejaVu Serif"],
     "mathtext.fontset": "cm",
     "axes.formatter.use_mathtext": True,
     "font.size": 12,
@@ -254,8 +254,7 @@ def render_tab(tab, name: str, curve_fn, model_metrics: dict | None) -> None:
             ax.plot(tempos, y, color="black", linewidth=2, solid_capstyle="round")
         ax.set_xlabel(X_LABEL)
         ax.set_ylabel(Y_LABEL)
-        ax.set_title(f"Modelo {name} -- cimento {cement_type}" if _HAS_LATEX
-                     else f"Modelo {name} — cimento {cement_type}")
+        ax.set_title(f"Modelo {name} — cimento {cement_type}")
         style_axes(ax)
         fig.tight_layout()
         st.pyplot(fig)
@@ -309,8 +308,7 @@ with tab_all:
             ax.plot(tempos, y, label=label, color=color, linestyle=linestyle, linewidth=2)
     ax.set_xlabel(X_LABEL)
     ax.set_ylabel(Y_LABEL)
-    ax.set_title(f"Comparação de modelos -- cimento {cement_type}" if _HAS_LATEX
-                 else f"Comparação de modelos — cimento {cement_type}")
+    ax.set_title(f"Comparação de modelos — cimento {cement_type}")
     style_axes(ax)
     ax.legend(loc="best")
     fig.tight_layout()
