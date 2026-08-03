@@ -22,6 +22,7 @@ import joblib
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import train_test_split
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -40,46 +41,56 @@ def _reg_metrics(y_true, y_pred) -> dict:
     }
 
 
-def _calibrated_metrics(y_true, y_pred_raw) -> dict:
-    """R²/RMSE/MAE after a linear (scale + bias) calibration of the raw
-    formula output against the target -- this is exactly the "R² após
-    ajuste linear" step the B4 sections of the original notebooks compute
-    (`LinearRegression().fit(J_train, y)`), used there because B4's absolute
-    scale doesn't line up with this specific database's convention even when
-    its overall shape/correlation is reasonable. This only affects the
-    reported metric, not the curve the app predicts for user-entered inputs.
+def _split_calibrated_metrics(df, y, predict_fn) -> dict:
+    """R²/RMSE/MAE on a held-out 30% test split (test_size=0.3,
+    random_state=42 -- the same split used everywhere else in this app,
+    including the RF/XGBoost training), after a linear (scale + bias)
+    calibration fit ONLY on the training split and applied to the test
+    split. This matters more than it may look: with only ~8000 rows and a
+    formula whose absolute scale doesn't match this database's convention,
+    a handful of extreme-error rows (some very-long-duration specimens the
+    closed-form formulas fit badly) can swing a *whole-dataset* R² by more
+    than a full point depending on how they happen to fall across a random
+    split. Evaluating strictly out-of-sample, the same way the ML models
+    are evaluated, gives a number that isn't an artifact of which random
+    subset you happen to look at.
     """
-    y_true_arr = np.asarray(y_true, dtype=float)
-    y_pred_arr = np.asarray(y_pred_raw, dtype=float)
-    mask = np.isfinite(y_true_arr) & np.isfinite(y_pred_arr)
-    reg = LinearRegression().fit(y_pred_arr[mask].reshape(-1, 1), y_true_arr[mask])
-    y_calibrated = reg.predict(y_pred_arr[mask].reshape(-1, 1))
-    return _reg_metrics(y_true_arr[mask], y_calibrated)
+    trainX, testX, trainY, testY = train_test_split(df, y, test_size=0.3, random_state=42)
+
+    pred_train = np.asarray(predict_fn(trainX), dtype=float)
+    pred_test = np.asarray(predict_fn(testX), dtype=float)
+    trainY_arr = np.asarray(trainY, dtype=float)
+    testY_arr = np.asarray(testY, dtype=float)
+
+    mask_train = np.isfinite(pred_train) & np.isfinite(trainY_arr)
+    mask_test = np.isfinite(pred_test) & np.isfinite(testY_arr)
+
+    reg = LinearRegression().fit(pred_train[mask_train].reshape(-1, 1), trainY_arr[mask_train])
+    y_calibrated_test = reg.predict(pred_test[mask_test].reshape(-1, 1))
+    return _reg_metrics(testY_arr[mask_test], y_calibrated_test)
 
 
 def evaluate_formulas() -> dict:
-    """R²/RMSE/MAE of each closed-form model against the full cleaned
-    database (these are physics formulas, not fitted to this dataset, so
-    this is a "how well does the norm/standard match reality" check, not a
-    held-out ML test score). ABNT and B4 are BOTH reported after the same
-    linear calibration (scale + bias) their own notebooks used -- comparing
-    a raw formula's R² against a calibrated one isn't apples-to-apples,
-    since a raw output can carry a scale/bias mismatch that swamps the R²
-    even when the underlying shape/correlation is fine.
+    """R²/RMSE/MAE of each closed-form model on a held-out test split (see
+    `_split_calibrated_metrics`) -- these are physics formulas, not fitted
+    to this dataset, so a linear scale/bias calibration (fit on train only)
+    is applied first, matching what the original notebooks do; this makes
+    ABNT and B4 directly comparable to each other and to the RF/XGBoost
+    test metrics reported elsewhere in the app.
     """
     results = {}
 
     df_c = dp.build_creep_dataset(merge_cement_nr=False)
     y_c = df_c["x4"].abs()
-    results["creep_abnt"] = _calibrated_metrics(y_c, f.fluencia_abnt(df_c)["J_total"])
-    results["creep_b3"] = _calibrated_metrics(y_c, f.calcular_fluencia_B3_corrigido(df_c))
-    results["creep_b4"] = _calibrated_metrics(y_c, f.calcular_fluencia_B4(df_c))
+    results["creep_abnt"] = _split_calibrated_metrics(df_c, y_c, lambda d: f.fluencia_abnt(d)["J_total"])
+    results["creep_b3"] = _split_calibrated_metrics(df_c, y_c, f.calcular_fluencia_B3_corrigido)
+    results["creep_b4"] = _split_calibrated_metrics(df_c, y_c, f.calcular_fluencia_B4)
 
     df_s = dp.build_shrinkage_dataset(merge_cement_nr=False)
     y_s = df_s["x4"].abs()
-    results["shrinkage_abnt"] = _calibrated_metrics(y_s, f.modelo_abnt(df_s)["ecs_ue"])
-    results["shrinkage_b3"] = _calibrated_metrics(y_s, f.calcular_retracao_b3_corrigido(df_s))
-    results["shrinkage_b4"] = _calibrated_metrics(y_s, f.calcular_retracao_b4_baseline_tc(df_s))
+    results["shrinkage_abnt"] = _split_calibrated_metrics(df_s, y_s, lambda d: f.modelo_abnt(d)["ecs_ue"])
+    results["shrinkage_b3"] = _split_calibrated_metrics(df_s, y_s, f.calcular_retracao_b3_corrigido)
+    results["shrinkage_b4"] = _split_calibrated_metrics(df_s, y_s, f.calcular_retracao_b4_baseline_tc)
 
     return results
 

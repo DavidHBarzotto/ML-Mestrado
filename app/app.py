@@ -185,10 +185,11 @@ with st.sidebar.expander("Limitações conhecidas"):
         "todos os modelos — internamente, o Random Forest/XGBoost já foram "
         "treinados tratando N e R como a mesma categoria, e nas fórmulas "
         "ABNT/B4 essa opção usa os parâmetros do cimento N.\n"
-        "- As métricas de **ABNT e B4** são calculadas após uma calibração "
-        "linear (escala + viés) contra a base — mesmo procedimento usado nos "
-        "notebooks originais — para permitir comparação justa entre os dois; "
-        "não é um teste de ML com dados nunca vistos."
+        "- As métricas de **ABNT e B4** são calculadas com o mesmo split "
+        "treino/teste (70/30) usado no Random Forest/XGBoost: calibração "
+        "linear (escala + viés) ajustada só no treino, R²/RMSE/MAE reportados "
+        "no teste — mesmo procedimento usado nos notebooks originais, e "
+        "diretamente comparável entre todos os modelos."
     )
 
 e28_user = e28_input if e28_input > 0 else None
@@ -300,10 +301,10 @@ def render_tab(tab, name: str, curve_fn, model_metrics: dict | None) -> None:
             c3.metric("MAE", f"{model_metrics['mae']:.2f}")
             if name in ("ABNT", "B4"):
                 st.caption(
-                    "R²/RMSE/MAE calculados após calibração linear (escala + viés) da "
-                    "fórmula contra a base — mesmo procedimento usado nos notebooks originais, "
-                    "já que a escala bruta de cada fórmula não bate exatamente com a convenção "
-                    "desta base."
+                    "R²/RMSE/MAE no split de teste (30%, calibração linear ajustada só "
+                    "no treino) — mesmo procedimento usado nos notebooks originais, já "
+                    "que a escala bruta de cada fórmula não bate exatamente com a "
+                    "convenção desta base."
                 )
 
         df_out = pd.DataFrame({"tempo_dias": tempos, "valor": y})
