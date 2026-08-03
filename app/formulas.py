@@ -419,26 +419,18 @@ def calcular_retracao_b3_corrigido(data: pd.DataFrame) -> pd.Series:
 # SHRINKAGE -- ACI 209 B4 (baseline em t_c, com retração autógena)
 # =====================================================================
 
-# Per-cement-type parameters for the drying-shrinkage sub-model (tau_0 /
-# epsilon_0). These are the SAME parameters used inside calcular_fluencia_B4's
-# drying-creep term ("Cd") for each cement type -- ACI 209 B4 shares this
-# drying-shrinkage sub-model between the creep and the shrinkage formulations,
-# so this is not a new/guessed table, just wiring up per-type data that
-# already exists (and was verified) in the creep-B4 model. N and RS share the
-# same values there, matching the original notebook's own grouping.
-_SHR_B4_PARAMS_SH = {
-    "N":  {"tau_cem": 0.08,  "p_tau_a": -0.33, "p_tau_w": -2.40, "p_tau_c": -2.70,
-           "eps_cem": 860e-6, "p_eps_a": -0.80, "p_eps_w": -0.27, "p_eps_c": 0.11},
-    "RS": {"tau_cem": 0.08,  "p_tau_a": -0.33, "p_tau_w": -2.40, "p_tau_c": -2.70,
-           "eps_cem": 860e-6, "p_eps_a": -0.80, "p_eps_w": -0.27, "p_eps_c": 0.11},
-    "R":  {"tau_cem": 0.016, "p_tau_a": -0.33, "p_tau_w": -0.06, "p_tau_c": -0.10,
-           "eps_cem": 360e-6, "p_eps_a": -0.80, "p_eps_w": 1.10, "p_eps_c": 0.11},
-    "SL": {"tau_cem": 0.01,  "p_tau_a": -0.33, "p_tau_w": 3.55,  "p_tau_c": 3.8,
-           "eps_cem": 410e-6, "p_eps_a": -0.80, "p_eps_w": 1.00, "p_eps_c": 0.11},
+# NOTE: an earlier revision of this file gave the drying-shrinkage sub-model
+# (tau_0/epsilon_0) its own per-cement-type table, borrowed from the
+# per-type branch of calcular_fluencia_B4. That branch has since been
+# replaced (it fit the creep database worse than the generic-parameter
+# version -- see calcular_fluencia_B4 above), and the same per-type table
+# turned out to fit THIS database worse too (calibrated R^2 0.18 vs 0.23
+# for the original single-table version below). Reverted to the original
+# notebook's fixed "Type R" table for every cement type.
+_SHR_B4_PARAMS_SH_R = {
+    "tau_cem": 0.016, "p_tau_a": -0.33, "p_tau_w": -0.06, "p_tau_c": -0.10,
+    "eps_cem": 360e-6, "p_eps_a": -0.80, "p_eps_w": 1.10, "p_eps_c": 0.11,
 }
-# No per-cement-type calibration for the autogenous-shrinkage sub-model exists
-# in any of the source notebooks -- this part keeps using the single "Type R"
-# table for every cement type (a real, disclosed limitation).
 _SHR_B4_PARAMS_AU_R = {
     "tau_au_cem": 1.00, "r_tau_w": 3.00,
     "eps_au_cem": 210e-6, "r_eps_a": -0.75, "r_eps_w": -3.50,
@@ -467,34 +459,17 @@ def calcular_retracao_b4_baseline_tc(data: pd.DataFrame) -> pd.Series:
     else:
         E_cm28 = 4734 * np.sqrt(f_cm28)
 
+    p_sh = _SHR_B4_PARAMS_SH_R
     p_au = _SHR_B4_PARAMS_AU_R
 
-    n_rows = len(data)
-    tau_cem = np.zeros(n_rows); p_tau_a = np.zeros(n_rows); p_tau_w = np.zeros(n_rows); p_tau_c = np.zeros(n_rows)
-    eps_cem = np.zeros(n_rows); p_eps_a = np.zeros(n_rows); p_eps_w = np.zeros(n_rows); p_eps_c = np.zeros(n_rows)
-
-    r = data["x19_R"].to_numpy(float) if "x19_R" in data.columns else np.zeros(n_rows)
-    rs = data["x19_RS"].to_numpy(float) if "x19_RS" in data.columns else np.zeros(n_rows)
-    sl = data["x19_SL"].to_numpy(float) if "x19_SL" in data.columns else np.zeros(n_rows)
-    masks = {
-        "N": ~((r > 0.5) | (rs > 0.5) | (sl > 0.5)),  # implicit reference category
-        "RS": rs > 0.5,
-        "R": r > 0.5,
-        "SL": sl > 0.5,
-    }
-    for tipo, mask in masks.items():
-        p = _SHR_B4_PARAMS_SH[tipo]
-        tau_cem[mask], p_tau_a[mask], p_tau_w[mask], p_tau_c[mask] = (
-            p["tau_cem"], p["p_tau_a"], p["p_tau_w"], p["p_tau_c"])
-        eps_cem[mask], p_eps_a[mask], p_eps_w[mask], p_eps_c[mask] = (
-            p["eps_cem"], p["p_eps_a"], p["p_eps_w"], p["p_eps_c"])
-
-    tau_0 = tau_cem * (a_c / 6) ** p_tau_a * (w_c / 0.38) ** p_tau_w * (6.5 * c / _SHR_B4_RHO_DEFAULT) ** p_tau_c
+    tau_0 = (p_sh["tau_cem"] * (a_c / 6) ** p_sh["p_tau_a"]
+             * (w_c / 0.38) ** p_sh["p_tau_w"] * (6.5 * c / _SHR_B4_RHO_DEFAULT) ** p_sh["p_tau_c"])
 
     D = 2 * V_S
     tau_sh = tau_0 * _SHR_B4_K_TAU_A * (_SHR_B4_K_S * D / 1.0) ** 2
 
-    epsilon_0 = eps_cem * (a_c / 6) ** p_eps_a * (w_c / 0.38) ** p_eps_w * (6.5 * c / _SHR_B4_RHO_DEFAULT) ** p_eps_c
+    epsilon_0 = (p_sh["eps_cem"] * (a_c / 6) ** p_sh["p_eps_a"]
+                 * (w_c / 0.38) ** p_sh["p_eps_w"] * (6.5 * c / _SHR_B4_RHO_DEFAULT) ** p_sh["p_eps_c"])
 
     def calculate_E_t(time_days, E28):
         time_days_safe = np.maximum(time_days, 1e-6)

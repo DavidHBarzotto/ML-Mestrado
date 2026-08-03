@@ -40,9 +40,10 @@ CEMENT_EFFECT_NOTE = {
         "mas por isso não muda com a seleção de cimento (mesma limitação do B3)."
     ),
     ("shrinkage", "B4"): (
-        "⚠️ O tipo de cimento afeta apenas a parcela de secagem deste modelo — "
-        "a parcela autógena usa um único conjunto de parâmetros para todos os tipos "
-        "(sem calibração por tipo disponível na literatura de origem)."
+        "⚠️ Este modelo usa os parâmetros do cimento Tipo R para todos os tipos "
+        "(a tabela por tipo de cimento existente na literatura se ajusta pior a "
+        "esta base) — por isso não muda com a seleção de cimento (mesma "
+        "limitação do B3/B4-fluência)."
     ),
 }
 
@@ -175,11 +176,9 @@ with st.sidebar.expander("Limitações conhecidas"):
         "209.2R-08 (não diferencia tipo de cimento) — é a que melhor se ajusta "
         "a esta base; uma versão alternativa com tabela por tipo de cimento "
         "existe mas se ajusta pior.\n"
-        "- **B4 (retração)** — o tipo de cimento altera a parcela de secagem "
-        "(usando as mesmas tabelas por tipo do modelo B4 de fluência que tem "
-        "tabela), mas a parcela autógena continua fixa nos parâmetros 'Tipo R', "
-        "pois não há calibração por tipo de cimento para essa parcela na "
-        "literatura de origem.\n"
+        "- **B4 (retração)** usa os parâmetros do cimento Tipo R para todos os "
+        "tipos (mesma razão do B4-fluência: a tabela por tipo se ajusta pior a "
+        "esta base) — não diferencia tipo de cimento.\n"
         "- **ABNT** trata os cimentos N e RS como idênticos — é assim que a "
         "norma agrupa esses tipos, não é uma limitação da modelagem.\n"
         "- O seletor de cimento junta **N e R em uma única opção** ('N/R') em "
