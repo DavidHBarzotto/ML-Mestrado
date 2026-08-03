@@ -48,15 +48,15 @@ plt.rcParams.update({
     "font.serif": ["DejaVu Serif"],
     "mathtext.fontset": "cm",
     "axes.formatter.use_mathtext": True,
-    "font.size": 12,
-    "axes.titlesize": 13,
-    "axes.labelsize": 13,
-    "legend.fontsize": 11,
-    "xtick.labelsize": 11,
-    "ytick.labelsize": 11,
-    "axes.linewidth": 0.9,
-    "lines.linewidth": 2.0,
-    "figure.dpi": 150,
+    "font.size": 9,
+    "axes.titlesize": 10,
+    "axes.labelsize": 9.5,
+    "legend.fontsize": 8.5,
+    "xtick.labelsize": 8.5,
+    "ytick.labelsize": 8.5,
+    "axes.linewidth": 0.8,
+    "lines.linewidth": 1.6,
+    "figure.dpi": 160,
     "axes.grid": True,
     "grid.linestyle": ":",
     "grid.alpha": 0.5,
@@ -66,6 +66,25 @@ plt.rcParams.update({
 })
 
 st.set_page_config(page_title="Fluência & Retração do Concreto", layout="wide")
+
+# --- Layout compacto: reduz espacamento padrao do Streamlit e o tamanho
+# das fontes dos widgets, para caber mais coisa na tela sem rolar. ---
+st.markdown("""
+<style>
+    .block-container {padding-top: 3.2rem; padding-bottom: 1rem; max-width: 1400px;}
+    div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stVerticalBlock"] {gap: 0.35rem;}
+    section[data-testid="stSidebar"] .block-container {padding-top: 1.8rem;}
+    div[data-testid="stSidebarUserContent"] {gap: 0.2rem;}
+    h1 {font-size: 1.35rem !important; margin-bottom: 0.2rem;}
+    h3 {font-size: 1rem !important; margin-top: 0.4rem; margin-bottom: 0.2rem;}
+    .stCaption, [data-testid="stCaptionContainer"] {font-size: 0.78rem !important;}
+    label, .stNumberInput label, .stSelectbox label, .stSlider label {font-size: 0.8rem !important;}
+    div[data-testid="stNumberInput"] input, div[data-testid="stSelectbox"] {font-size: 0.82rem !important;}
+    .stTabs [data-baseweb="tab-list"] {gap: 4px;}
+    .stTabs [data-baseweb="tab"] {font-size: 0.85rem; padding: 0.35rem 0.7rem; height: auto;}
+    div[data-testid="stExpander"] p {font-size: 0.78rem;}
+</style>
+""", unsafe_allow_html=True)
 
 
 def style_axes(ax) -> None:
@@ -95,45 +114,54 @@ def load_artifacts():
 
 artifacts = load_artifacts()
 
-st.title("Previsão de Fluência (J) e Retração (ε) do Concreto")
+st.title("Fluência (J) e Retração (ε) do Concreto")
 st.caption(
-    "ABNT NBR 6118, ACI 209 (B4), Random Forest e XGBoost treinados na base NU-ITI "
-    "(Bažant & Li) — insira as propriedades do concreto e compare as curvas previstas."
+    "ABNT NBR 6118 · ACI 209 (B4) · Random Forest · XGBoost — base NU-ITI (Bažant & Li)"
 )
 
 if artifacts is None:
     st.warning(
-        "Os modelos de Machine Learning (Random Forest / XGBoost) ainda não foram "
-        "treinados. Rode `python app/train_models.py` no terminal e recarregue esta "
-        "página para habilitar essas abas (as fórmulas ABNT/B4 já funcionam)."
+        "Modelos de ML ainda não treinados. Rode `python app/train_models.py` e "
+        "recarregue a página (as fórmulas ABNT/B4 já funcionam sem isso)."
     )
 
 # --- Entradas -------------------------------------------------------
 
-quantity_label = st.sidebar.radio("Grandeza", ["Fluência (J)", "Retração (ε)"])
+quantity_label = st.sidebar.radio("Grandeza", ["Fluência (J)", "Retração (ε)"], horizontal=True)
 quantity = "creep" if quantity_label.startswith("Fluência") else "shrinkage"
 
 CEMENT_OPTIONS = ["N/R", "RS", "SL"]
 
-st.sidebar.header("Propriedades do concreto")
-fc28 = st.sidebar.number_input("fc28 — resistência aos 28 dias (MPa)", 5.0, 120.0, 33.3, step=1.0)
-e28_input = st.sidebar.number_input(
-    "E28 — módulo de elasticidade aos 28 dias (MPa) — 0 = calcular automaticamente",
-    0.0, 60000.0, 29800.0, step=100.0,
-)
-wc = st.sidebar.number_input("a/c — relação água/cimento", 0.2, 1.2, 0.56, step=0.01)
-ac = st.sidebar.number_input("agr/c — relação agregado/cimento", 0.5, 10.0, 3.814, step=0.1)
-cement_kg = st.sidebar.number_input("Cimento (kg/m³)", 100.0, 600.0, 280.0, step=10.0)
-vs_ratio = st.sidebar.number_input("Relação Volume/Superfície (V/S, mm)", 5.0, 300.0, 37.5, step=1.0)
-length_radius = st.sidebar.number_input("Length/Radius (mm)", 10.0, 1000.0, 150.0, step=10.0)
-height = st.sidebar.number_input("Altura / Height (mm)", 10.0, 2000.0, 300.0, step=10.0)
+decimals = st.sidebar.number_input("Casas decimais (entradas e tabelas)", 0, 6, 2, step=1)
+fmt = f"%.{int(decimals)}f"
+
+st.sidebar.markdown("**Propriedades do concreto**")
+c1, c2 = st.sidebar.columns(2)
+fc28 = c1.number_input("fc28 (MPa)", 5.0, 120.0, 33.3, step=1.0, format=fmt, help="Resistência à compressão aos 28 dias")
+e28_input = c2.number_input("E28 (MPa)", 0.0, 60000.0, 29800.0, step=100.0, format=fmt, help="Módulo de elasticidade aos 28 dias — 0 = calcular automaticamente")
+
+c1, c2 = st.sidebar.columns(2)
+wc = c1.number_input("a/c", 0.2, 1.2, 0.56, step=0.01, format=fmt, help="Relação água/cimento")
+ac = c2.number_input("agr/c", 0.5, 10.0, 3.814, step=0.1, format=fmt, help="Relação agregado/cimento")
+
+c1, c2 = st.sidebar.columns(2)
+cement_kg = c1.number_input("Cimento (kg/m³)", 100.0, 600.0, 280.0, step=10.0, format=fmt)
+vs_ratio = c2.number_input("V/S (mm)", 5.0, 300.0, 37.5, step=1.0, format=fmt, help="Relação Volume/Superfície")
+
+c1, c2 = st.sidebar.columns(2)
+length_radius = c1.number_input("L/R (mm)", 10.0, 1000.0, 150.0, step=10.0, format=fmt, help="Length/Radius")
+height = c2.number_input("Altura (mm)", 10.0, 2000.0, 300.0, step=10.0, format=fmt)
+
+c1, c2 = st.sidebar.columns(2)
 if quantity == "creep":
-    t0 = st.sidebar.number_input("Idade de carregamento, t0 (dias)", 0.5, 365.0, 7.0, step=1.0)
+    t0 = c1.number_input("t0 (dias)", 0.5, 365.0, 7.0, step=1.0, format=fmt, help="Idade de carregamento")
 else:
-    t0 = st.sidebar.number_input("Idade de início da secagem, tc (dias)", 0.5, 365.0, 7.0, step=1.0)
-humidity = st.sidebar.number_input("Umidade relativa do ambiente (%)", 40.0, 100.0, 60.0, step=1.0)
-temp = st.sidebar.number_input("Temperatura (°C)", 0.0, 60.0, 23.0, step=1.0)
-cement_display = st.sidebar.selectbox("Tipo de cimento", CEMENT_OPTIONS, index=0)
+    t0 = c1.number_input("tc (dias)", 0.5, 365.0, 7.0, step=1.0, format=fmt, help="Idade de início da secagem")
+humidity = c2.number_input("Umidade (%)", 40.0, 100.0, 60.0, step=1.0, format=fmt)
+
+c1, c2 = st.sidebar.columns(2)
+temp = c1.number_input("Temp. (°C)", 0.0, 60.0, 23.0, step=1.0, format=fmt)
+cement_display = c2.selectbox("Cimento", CEMENT_OPTIONS, index=0)
 # N and R are kept as a single option everywhere in the UI: RF/XGBoost were
 # already trained with N and R merged into one category, and ABNT/B4 group
 # N with RS in their own tables -- so "N" and "R" almost never behave
@@ -142,10 +170,16 @@ cement_display = st.sidebar.selectbox("Tipo de cimento", CEMENT_OPTIONS, index=0
 # value wherever a formula needs one specific flag.
 cement_type = "N" if cement_display == "N/R" else cement_display
 
-st.sidebar.header("Faixa de tempo da curva")
-t_max = st.sidebar.slider("Duração máxima (dias)", 28, 3650, 84)
+st.sidebar.markdown("**Faixa de tempo da curva**")
+c1, c2 = st.sidebar.columns(2)
+t_min = c1.number_input("Tempo inicial (dias)", 0.01, 3650.0, 0.01, step=0.1, format="%.2f")
+t_max = c2.number_input("Tempo final (dias)", 0.1, 3650.0, 84.0, step=1.0)
+if t_max <= t_min:
+    st.sidebar.warning("Tempo final ajustado — deve ser maior que o inicial.")
+    t_max = t_min + 1.0
+
 n_points = st.sidebar.slider("Pontos da curva", 20, 200, 84)
-log_x = st.sidebar.checkbox("Eixo do tempo em escala logarítmica", value=(quantity == "creep"))
+log_x = st.sidebar.checkbox("Eixo do tempo em escala logarítmica", value=False)
 
 with st.sidebar.expander("Limitações conhecidas"):
     st.markdown(
@@ -185,7 +219,7 @@ def base_props(e28_value: float) -> dict:
     }
 
 
-tempos = np.linspace(0.01 if quantity == "creep" else 1.0, float(t_max), int(n_points))
+tempos = np.linspace(float(t_min), float(t_max), int(n_points))
 
 colmap = dp.CREEP_COLMAP if quantity == "creep" else dp.SHRINK_COLMAP
 cement_prefix = dp.CREEP_CEMENT_PREFIX if quantity == "creep" else dp.SHRINK_CEMENT_PREFIX
@@ -234,26 +268,30 @@ def render_tab(tab, name: str, curve_fn) -> None:
             st.info("Modelo ainda não treinado — rode `python app/train_models.py`.")
             return
 
-        fig, ax = plt.subplots(figsize=(7.5, 5))
-        if log_x:
-            ax.semilogx(tempos, y, color="black", linewidth=2, solid_capstyle="round")
-        else:
-            ax.plot(tempos, y, color="black", linewidth=2, solid_capstyle="round")
-        ax.set_xlabel(X_LABEL)
-        ax.set_ylabel(Y_LABEL)
-        ax.set_title(f"Modelo {name} — cimento {cement_display}")
-        style_axes(ax)
-        fig.tight_layout()
-        st.pyplot(fig)
-        plt.close(fig)
+        col_plot, col_data = st.columns([3, 2])
 
-        df_out = pd.DataFrame({"tempo_dias": tempos, "valor": y})
-        st.download_button(
-            "Baixar curva (CSV)", df_out.to_csv(index=False).encode("utf-8"),
-            file_name=f"{quantity}_{name.lower().replace(' ', '_')}.csv", mime="text/csv",
-            key=f"download_{quantity}_{name}",
-        )
-        st.dataframe(df_out, width="stretch", height=200)
+        with col_plot:
+            fig, ax = plt.subplots(figsize=(5.4, 3.6))
+            if log_x:
+                ax.semilogx(tempos, y, color="black", linewidth=1.6, solid_capstyle="round")
+            else:
+                ax.plot(tempos, y, color="black", linewidth=1.6, solid_capstyle="round")
+            ax.set_xlabel(X_LABEL)
+            ax.set_ylabel(Y_LABEL)
+            ax.set_title(f"Modelo {name} — cimento {cement_display}")
+            style_axes(ax)
+            fig.tight_layout()
+            st.pyplot(fig, width="content")
+            plt.close(fig)
+
+        df_out = pd.DataFrame({"tempo_dias": tempos, "valor": y}).round(int(decimals))
+        with col_data:
+            st.download_button(
+                "Baixar curva (CSV)", df_out.to_csv(index=False).encode("utf-8"),
+                file_name=f"{quantity}_{name.lower().replace(' ', '_')}.csv", mime="text/csv",
+                key=f"download_{quantity}_{name}",
+            )
+            st.dataframe(df_out, width="stretch", height=300)
 
 
 tab_abnt, tab_b4, tab_rf, tab_xgb, tab_all = st.tabs(
@@ -273,32 +311,36 @@ with tab_all:
         "Random Forest": ("tab:green", "-.", lambda: curve_ml("rf")),
         "XGBoost": ("tab:red", ":", lambda: curve_ml("xgb")),
     }
-    fig, ax = plt.subplots(figsize=(8.5, 5.5))
     combined = {"tempo_dias": tempos}
-    for label, (color, linestyle, fn) in series.items():
-        try:
-            y = fn()
-        except Exception:
-            continue
-        if y is None:
-            continue
-        combined[label] = y
-        if log_x:
-            ax.semilogx(tempos, y, label=label, color=color, linestyle=linestyle, linewidth=2)
-        else:
-            ax.plot(tempos, y, label=label, color=color, linestyle=linestyle, linewidth=2)
-    ax.set_xlabel(X_LABEL)
-    ax.set_ylabel(Y_LABEL)
-    ax.set_title(f"Comparação de modelos — cimento {cement_display}")
-    style_axes(ax)
-    ax.legend(loc="best")
-    fig.tight_layout()
-    st.pyplot(fig)
-    plt.close(fig)
+    col_plot, col_data = st.columns([3, 2])
 
-    df_all = pd.DataFrame(combined)
-    st.download_button(
-        "Baixar comparação (CSV)", df_all.to_csv(index=False).encode("utf-8"),
-        file_name=f"{quantity}_comparacao.csv", mime="text/csv", key=f"download_all_{quantity}",
-    )
-    st.dataframe(df_all, width="stretch", height=250)
+    with col_plot:
+        fig, ax = plt.subplots(figsize=(5.8, 3.8))
+        for label, (color, linestyle, fn) in series.items():
+            try:
+                y = fn()
+            except Exception:
+                continue
+            if y is None:
+                continue
+            combined[label] = y
+            if log_x:
+                ax.semilogx(tempos, y, label=label, color=color, linestyle=linestyle, linewidth=1.6)
+            else:
+                ax.plot(tempos, y, label=label, color=color, linestyle=linestyle, linewidth=1.6)
+        ax.set_xlabel(X_LABEL)
+        ax.set_ylabel(Y_LABEL)
+        ax.set_title(f"Comparação de modelos — cimento {cement_display}")
+        style_axes(ax)
+        ax.legend(loc="best")
+        fig.tight_layout()
+        st.pyplot(fig, width="content")
+        plt.close(fig)
+
+    df_all = pd.DataFrame(combined).round(int(decimals))
+    with col_data:
+        st.download_button(
+            "Baixar comparação (CSV)", df_all.to_csv(index=False).encode("utf-8"),
+            file_name=f"{quantity}_comparacao.csv", mime="text/csv", key=f"download_all_{quantity}",
+        )
+        st.dataframe(df_all, width="stretch", height=300)
