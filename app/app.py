@@ -7,6 +7,7 @@ Run with:
 """
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -28,7 +29,7 @@ MODELS_DIR = ROOT / "models"
 # Models that only partially use the selected cement type -- see the
 # "Limitações conhecidas" note in the sidebar for details.
 CEMENT_EFFECT_NOTE = {
-    ("shrinkage", "ABNT"): (
+    ("shrinkage", "NBR 6118:2023"): (
         "⚠️ Pela NBR 6118, a **retração** não depende do tipo de cimento (só a "
         "**fluência** depende, pelo coeficiente de endurecimento) — por isso "
         "trocar o cimento aqui não altera a curva."
@@ -87,6 +88,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+def _slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
 def style_axes(ax) -> None:
     """Applies a consistent, journal-style look to a plot axis."""
     ax.tick_params(direction="in", which="both", top=True, right=True)
@@ -116,13 +121,13 @@ artifacts = load_artifacts()
 
 st.title("Fluência (J) e Retração (ε) do Concreto")
 st.caption(
-    "ABNT NBR 6118 · ACI 209 (B4) · Random Forest · XGBoost — base NU-ITI (Bažant & Li)"
+    "NBR 6118:2023 · ACI 209 (B4) · Random Forest · XGBoost — base NU-ITI (Bažant & Li)"
 )
 
 if artifacts is None:
     st.warning(
         "Modelos de ML ainda não treinados. Rode `python app/train_models.py` e "
-        "recarregue a página (as fórmulas ABNT/B4 já funcionam sem isso)."
+        "recarregue a página (as fórmulas NBR 6118:2023/B4 já funcionam sem isso)."
     )
 
 # --- Entradas -------------------------------------------------------
@@ -183,14 +188,15 @@ log_x = st.sidebar.checkbox("Eixo do tempo em escala logarítmica", value=False)
 
 with st.sidebar.expander("Limitações conhecidas"):
     st.markdown(
-        "- **ABNT (retração)** não depende do tipo de cimento — a norma NBR "
-        "6118 só faz essa distinção na fórmula da fluência.\n"
-        "- **ABNT** trata os cimentos N e RS como idênticos — é assim que a "
-        "norma agrupa esses tipos, não é uma limitação da modelagem.\n"
+        "- **NBR 6118:2023 (retração)** não depende do tipo de cimento — a "
+        "norma só faz essa distinção na fórmula da fluência.\n"
+        "- **NBR 6118:2023** trata os cimentos N e RS como idênticos — é "
+        "assim que a norma agrupa esses tipos, não é uma limitação da "
+        "modelagem.\n"
         "- O seletor de cimento junta **N e R em uma única opção** ('N/R') em "
         "todos os modelos — internamente, o Random Forest/XGBoost já foram "
         "treinados tratando N e R como a mesma categoria, e nas fórmulas "
-        "ABNT/B4 essa opção usa os parâmetros do cimento N."
+        "NBR 6118:2023/B4 essa opção usa os parâmetros do cimento N."
     )
 
 e28_user = e28_input if e28_input > 0 else None
@@ -288,17 +294,17 @@ def render_tab(tab, name: str, curve_fn) -> None:
         with col_data:
             st.download_button(
                 "Baixar curva (CSV)", df_out.to_csv(index=False).encode("utf-8"),
-                file_name=f"{quantity}_{name.lower().replace(' ', '_')}.csv", mime="text/csv",
+                file_name=f"{quantity}_{_slug(name)}.csv", mime="text/csv",
                 key=f"download_{quantity}_{name}",
             )
             st.dataframe(df_out, width="stretch", height=300)
 
 
 tab_abnt, tab_b4, tab_rf, tab_xgb, tab_all = st.tabs(
-    ["ABNT", "B4", "Random Forest", "XGBoost", "Comparar todos"]
+    ["NBR 6118:2023", "B4", "Random Forest", "XGBoost", "Comparar todos"]
 )
 
-render_tab(tab_abnt, "ABNT", curve_abnt)
+render_tab(tab_abnt, "NBR 6118:2023", curve_abnt)
 render_tab(tab_b4, "B4", curve_b4)
 render_tab(tab_rf, "Random Forest", lambda: curve_ml("rf"))
 render_tab(tab_xgb, "XGBoost", lambda: curve_ml("xgb"))
@@ -306,7 +312,7 @@ render_tab(tab_xgb, "XGBoost", lambda: curve_ml("xgb"))
 with tab_all:
     st.caption("Sobreposição das curvas de todos os modelos disponíveis para as mesmas propriedades.")
     series = {
-        "ABNT": ("black", "-", curve_abnt),
+        "NBR 6118:2023": ("black", "-", curve_abnt),
         "B4": ("tab:blue", "--", curve_b4),
         "Random Forest": ("tab:green", "-.", lambda: curve_ml("rf")),
         "XGBoost": ("tab:red", ":", lambda: curve_ml("xgb")),
