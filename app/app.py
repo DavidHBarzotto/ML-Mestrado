@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 import sys
+import urllib.request
 from pathlib import Path
 
 import joblib
@@ -101,18 +102,40 @@ def style_axes(ax) -> None:
     ax.set_axisbelow(True)
 
 
+# Optional: URL of a GitHub Release asset with the pre-trained artifacts.joblib.
+# If set and reachable, the app downloads it instead of training live -- much
+# faster and lighter than training on Streamlit Community Cloud's shared,
+# memory-constrained free containers (live training there has been observed
+# to hang for several minutes instead of the ~20s seen on a normal machine).
+ARTIFACT_RELEASE_URL = (
+    "https://github.com/DavidHBarzotto/ML-Mestrado/releases/download/models-v1/artifacts.joblib"
+)
+
+
 @st.cache_resource
 def load_artifacts():
-    """Loads the cached RF/XGBoost models if `python app/train_models.py` was
-    already run locally; otherwise trains them once, in-process (~15-20s,
-    hyperparameters are already fixed -- no GridSearch is re-run). This lets
-    the app be deployed straight from GitHub without shipping the ~90MB
-    model file: Streamlit Cloud will just train on first load and cache the
-    result in memory for the life of that instance.
+    """Loads the cached RF/XGBoost models if present locally (from
+    `python app/train_models.py` or a previous download); otherwise tries to
+    download a pre-trained copy from ARTIFACT_RELEASE_URL; if that also
+    isn't available, falls back to training in-process (~15-20s on a normal
+    machine, hyperparameters are already fixed -- no GridSearch is re-run).
     """
     path = MODELS_DIR / "artifacts.joblib"
     if path.exists():
         return joblib.load(path)
+
+    if ARTIFACT_RELEASE_URL:
+        try:
+            with st.spinner("Baixando modelos pré-treinados..."):
+                MODELS_DIR.mkdir(exist_ok=True)
+                tmp_path = path.with_suffix(".part")
+                urllib.request.urlretrieve(ARTIFACT_RELEASE_URL, tmp_path)
+                tmp_path.rename(path)
+            return joblib.load(path)
+        except Exception:
+            if path.exists():
+                path.unlink(missing_ok=True)
+
     with st.spinner("Treinando Random Forest e XGBoost pela primeira vez (~20s)..."):
         return ml.train_all()
 
