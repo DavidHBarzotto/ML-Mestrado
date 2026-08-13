@@ -108,7 +108,7 @@ def style_axes(ax) -> None:
 # memory-constrained free containers (live training there has been observed
 # to hang for several minutes instead of the ~20s seen on a normal machine).
 ARTIFACT_RELEASE_URL = (
-    "https://github.com/DavidHBarzotto/ML-Mestrado/releases/download/models-v1/artifacts.joblib"
+    "https://github.com/DavidHBarzotto/ML-Mestrado/releases/download/Modelos-treinados-v1/artifacts.joblib"
 )
 
 
